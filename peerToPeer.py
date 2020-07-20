@@ -4,9 +4,11 @@ import multiprocessing
 import threading
 import datetime
 from datetime import timedelta
+import sys
+import sched, time
 
-nodesNumber = 2
-neighborsNumber = 1
+nodesNumber = 6
+neighborsNumber = 3
 nodesIp = '127.0.0.1'
 
 
@@ -20,6 +22,7 @@ class HelloPacket:
         self.lastSendedAt = lastSendedAt
         self.lastRecievedAt = lastRecievedAt
 
+
 class Node:
     def __init__(self, id, ip, port, others):
         self.id = id
@@ -29,24 +32,33 @@ class Node:
         self.neighbors = []
         self.nodesSaidHelloToMe = []
         self.nodesIsaidHelloToThem = []
+        print("Node ",id," created on port ",port,". other ports are: ",others)
+
+    def introduce(self):
+        print("Im ",self.port,". my neighbors are ",[x[0] for x in self.neighbors],
+         " and this people said hello to me: ",[x[0] for x in self.nodesSaidHelloToMe])
 
     def sendHelloPacket(self, nodePort, lastSendTime, lastRecieveTime):
         UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         message = HelloPacket(self.id, self.ip, self.port, "?", self.neighbors, lastSendTime, lastRecieveTime)
         data = pickle.dumps(message)
+        possiblity = random.randint(1,100)
         UDPClientSocket.sendto(data, (nodesIp, nodePort))
-        print("I(" + str(self.port) + ") sent hello packet to " + str(nodePort))
+        # time.sleep(15)
+        # print("I(" + str(self.port) + ") sent hello packet to " + str(nodePort))
 
     def sayHelloToNeighbors(self):
         for neighborInfo in self.neighbors:
-            print('3')
+            self.introduce()
+            print("I(" + str(self.port) + ") am sending packet to MY NEIGHBOR: ",neighborInfo[0])
             now = datetime.datetime.now()
             self.sendHelloPacket(neighborInfo[0], now, neighborInfo[2])
             neighborInfo = (neighborInfo[0], now, neighborInfo[2])
   
     def sayHelloToNodeSaidHello(self):
-        print('2')
         nodeInfo = random.choice(self.nodesSaidHelloToMe)
+        self.introduce()
+        print("I(" + str(self.port) + ") am sending packet to HELLO FRIEND: ",nodeInfo[0])
         now = datetime.datetime.now()
         self.sendHelloPacket(nodeInfo[0], now, nodeInfo[2])
         newNodeInfo = (nodeInfo[0], now, nodeInfo[2])
@@ -54,12 +66,16 @@ class Node:
         self.nodesIsaidHelloToThem.append(newNodeInfo)
 
     def sayHelloToOtherNode(self):
-        print('1')
-        nodePort = random.choice(self.others)
-        now = datetime.datetime.now()
-        self.sendHelloPacket(nodePort, now, datetime.datetime.min)
-        newNodeInfo = (nodePort, now, datetime.datetime.min)
-        self.nodesIsaidHelloToThem.append(newNodeInfo)
+        neighborsPorts = [neighbor[0] for neighbor in self.neighbors]
+        availablePorts = [port for port in self.others if port not in neighborsPorts]
+        if(len(availablePorts)>0):
+            nodePort = random.choice(availablePorts)
+            self.introduce()
+            print("I(" + str(self.port) + ") am sending packet to STRANGER: ",nodePort)
+            now = datetime.datetime.now()
+            self.sendHelloPacket(nodePort, now, datetime.datetime.min)
+            newNodeInfo = (nodePort, now, datetime.datetime.min)
+            self.nodesIsaidHelloToThem.append(newNodeInfo)
 
     def sayHello(self, runningStatus):
         threading.Timer(2.0, self.sayHello, args = (runningStatus,)).start()
@@ -84,9 +100,10 @@ class Node:
                 return
         for node in self.nodesIsaidHelloToThem:
             if node[0] == nodePort:
-                newNodeInfo = (nodePort, node[1], message.lastSendedAt)
-                self.nodesIsaidHelloToThem.remove(node)
-                self.neighbors.append(newNodeInfo)
+                if(len(self.neighbors) < neighborsNumber):
+                    newNodeInfo = (nodePort, node[1], message.lastSendedAt)
+                    self.nodesIsaidHelloToThem.remove(node)
+                    self.neighbors.append(newNodeInfo)
                 return
 
         for node in self.nodesSaidHelloToMe:
@@ -101,10 +118,11 @@ class Node:
         UDPServerSocket.bind((self.ip, self.port))
         while(True):
             if runningStatus[self.id] :
-                data, address = UDPServerSocket.recvfrom(1024)
-                message = pickle.loads(data)
-                print("I(" + str(self.port) + ") recieve hello packet from " + str(message.senderPort))
-                self.handleRecievedMessages(message)
+                if(not packetIsLost()):
+                    data, address = UDPServerSocket.recvfrom(1024)
+                    message = pickle.loads(data)
+                    print("I(" + str(self.port) + ") recieve hello packet from " + str(message.senderPort))
+                    self.handleRecievedMessages(message)
         
     def checkNeighbors(self, runningStatus):
         while(True):
@@ -124,32 +142,52 @@ class Node:
         t3.start()
         t4.start()
 
+
+def packetIsLost():
+    randomNumber = random.randint(1,100)
+    if(randomNumber > 5):
+        return False
+    return True
+
 def getPortNumbers():
     ports = []
     for i in range(nodesNumber):
         ports.append(random.randint(5000,10000))
     return ports
-    
-def createNewNode(nodesRunningStatus, id, ports):
-    print("----")
-    print(nodesRunningStatus[id])
-    nodePort = ports[i]
-    del ports[i]
-    node = Node(id, nodesIp, nodePort, ports)
-    node.run(nodesRunningStatus)
 
+def createNetworkNodes(ports):
+    nodes = []
+    for i in range(nodesNumber):
+        nodePort = ports[i]
+        others = [port for j,port in enumerate(ports) if j!=i]
+        node = Node(i, nodesIp, nodePort, others)
+        nodes.append(node)
+    return nodes
+
+# def turnANodeOff(nodesRunningStatus):
+#     nodeId = random.randint(0,nodesNumber-1)
+#     f = open(("turnOff"+str(nodeId)+".txt"), "w")
+#     f.write("Node "+ str(nodeId)+ " is turning off\n")
+#     t_end = time.time() + 20
+#     while time.time() < t_end:
+#         nodesRunningStatus[nodeId] = False
+#         f.write(str(time.time())+'\n')
+#     nodesRunningStatus[nodeId] = True
+#     f.write("Node "+ str(nodeId) + " turned on\n")
+#     f.close()
 
 if __name__ == '__main__':
     ports = getPortNumbers()
+    nodes = createNetworkNodes(ports)
     nodesRunningStatus = multiprocessing.Manager().list()
     for i in range(nodesNumber):
         nodesRunningStatus.append(True)
 
     for i in range(nodesNumber):
-        p = multiprocessing.Process(target=createNewNode, args=(nodesRunningStatus, i, ports, ))
+        p = multiprocessing.Process(target=nodes[i].run, args=(nodesRunningStatus, ))
         p.start()
-    # for i in range(nodesNumber):
-    #     nodesRunningStatus[i] = False
+    
+    # threading.Timer(10.0, turnANodeOff, args = (nodesRunningStatus,)).start()
     
     p.join()
     
