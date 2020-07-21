@@ -6,6 +6,8 @@ import datetime
 from datetime import timedelta
 import sys
 import sched, time
+import signal
+import os
 
 nodesNumber = 6
 neighborsNumber = 3
@@ -32,6 +34,7 @@ class Node:
         self.neighbors = [] #[(port, lastSendTime, lastRecieveTime)]
         self.nodesSaidHelloToMe = []
         self.nodesIsaidHelloToThem = []
+        self.neighborsHistory = {} #{port: [numberOfNeighberhoodVisits , sendedPackets, recievedPackets]}
 
     def sendHelloPacket(self, nodePort, lastSendTime, lastRecieveTime):
         UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -47,6 +50,7 @@ class Node:
             # print(str(self.port) + " sent hello packet to neighbor :" + str(self.neighbors[i][0]) + " at " + str(now))
             self.sendHelloPacket(self.neighbors[i][0], now, self.neighbors[i][2])
             self.neighbors[i] = (self.neighbors[i][0], now, self.neighbors[i][2])
+            self.updateNeighborsHistory(self.neighbors[i][0],packetIsRecieved= False, packetIsSended=True, isNeighborNow=True)
   
     def sayHelloToNodeSaidHello(self):
         nodeInfo = random.choice(self.nodesSaidHelloToMe)
@@ -71,18 +75,17 @@ class Node:
 
     def sayHello(self, runningStatus):
         threading.Timer(2.0, self.sayHello, args = (runningStatus,)).start()
+        print(self.id,"**************")
         if runningStatus[self.id] :
             self.sayHelloToNeighbors()
 
         
     def findNeighbors(self, runningStatus):
-        while(True):
-            if runningStatus[self.id] :
-                if len(self.neighbors) < neighborsNumber:
-                    if len(self.nodesSaidHelloToMe) > 0:
-                        self.sayHelloToNodeSaidHello()
-                    else:
-                        self.sayHelloToOtherNode()
+        if runningStatus[self.id] :
+                if len(self.nodesSaidHelloToMe) > 0:
+                    self.sayHelloToNodeSaidHello()
+                else:
+                    self.sayHelloToOtherNode()
 
     def handleRecievedMessages(self, message):
         nodePort = message.senderPort
@@ -90,7 +93,7 @@ class Node:
             if self.neighbors[i][0] == nodePort:
                 print("5 - recieve massage from my neighbor i am " + str(self.port))
                 self.neighbors[i] =  (self.neighbors[i][0], self.neighbors[i][1], message.lastSendedAt)
-                # print(str(self.port) + " recieve hello packet from neighbor :" + str(self.neighbors[i][0]) + " at " + str(self.neighbors[i][2]) )
+                self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=True)
                 return
         for i in range(len(self.nodesIsaidHelloToThem)):
             if self.nodesIsaidHelloToThem[i][0] == nodePort:
@@ -98,6 +101,7 @@ class Node:
                 if len(self.neighbors) < neighborsNumber:
                     newNodeInfo = (self.nodesIsaidHelloToThem[i][0], self.nodesIsaidHelloToThem[i][1], message.lastSendedAt)
                     self.neighbors.append(newNodeInfo)
+                    self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=False)
                     del self.nodesIsaidHelloToThem[i]
                 else:
                     self.nodesIsaidHelloToThem[i] = (self.nodesIsaidHelloToThem[i][0], self.nodesIsaidHelloToThem[i][1], message.lastSendedAt)
@@ -107,6 +111,7 @@ class Node:
                 print("7 - recieve massage from nodesSaidHelloToMe i am " + str(self.port))
                 self.nodesSaidHelloToMe[i] = (self.nodesSaidHelloToMe[i][0], self.nodesSaidHelloToMe[i][1], message.lastSendedAt)
                 return
+
         newNodeInfo = (nodePort, datetime.datetime.min, message.lastSendedAt)
         print("8 - recieve massage from others i am " + str(self.port))
         self.nodesSaidHelloToMe.append(newNodeInfo)    
@@ -122,27 +127,50 @@ class Node:
                     self.handleRecievedMessages(message)
         
     def checkNeighbors(self, runningStatus):
-        while(True):
-            if runningStatus[self.id] :
-                for neighborInfo in self.neighbors:
-                    expireDate = neighborInfo[2] + timedelta(seconds = 8) 
-                    now = datetime.datetime.now()   
-                    if now > expireDate :
-                        print("4 - checkNeighbors in " + str(self.port))
-                        # print("now : " + str(now) + " in " + str(self.port))
-                        # print("last time : " + str(neighborInfo[2]) + " in " + str(self.port))
-                        # print("expire : " + str(expireDate) + " in " + str(self.port))
-                        self.neighbors.remove(neighborInfo)
+        if runningStatus[self.id] :
+            for neighborInfo in self.neighbors:
+                expireDate = neighborInfo[2] + timedelta(seconds = 8) 
+                now = datetime.datetime.now()   
+                if now > expireDate :
+                    print("4 - checkNeighbors in " + str(self.port))
+                    self.neighbors.remove(neighborInfo)
+    
+    def updateNeighborsHistory(self,neighborPort, packetIsRecieved, packetIsSended, isNeighborNow):
+        if(packetIsRecieved):
+            if(neighborPort in self.neighborsHistory):
+                if(not isNeighborNow):
+                    self.neighborsHistory[neighborPort][0] += 1
+                else:
+                    self.neighborsHistory[neighborPort][2] += 1
+            else:
+                self.neighborsHistory.update({neighborPort: [1,0,0]})
+        elif(packetIsSended):
+            self.neighborsHistory[neighborPort][1] += 1
 
-    def run(self, nodesRunningStatus):  
-        t1 = threading.Thread(target=self.sayHello, args=(nodesRunningStatus,))
-        t2 = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
-        t3 = threading.Thread(target=self.findNeighbors, args=(nodesRunningStatus,))
-        t4 = threading.Thread(target=self.checkNeighbors, args=(nodesRunningStatus,))
-        t1.start()
-        t2.start()
-        t3.start()
-        t4.start()
+    def run(self, nodesRunningStatus):
+        listeningThread = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
+        listeningThread.start()
+        # s = sched.scheduler(time.time, time.sleep)
+        # s.enter(2, 0, self.sayHello, (nodesRunningStatus,))
+        # s.run()
+        self.sayHello(nodesRunningStatus)
+        while(True):
+            if len(self.neighbors) < neighborsNumber:
+                self.findNeighbors(nodesRunningStatus)
+            self.checkNeighbors(nodesRunningStatus)
+    
+    def report(self):
+        threading.Timer(5.0, self.report, args = ()).start()
+        f = open("node_"+str(self.id)+"_1.txt","a")
+        f.write("-------- time: "+ str(time.time()) +"---------\n")
+        neighborsPort = list(self.neighborsHistory.keys())
+        for port in neighborsPort:
+            f.write("IP: " + str(nodesIp) + ", Port: " + str(port) + 
+            " Neighborhood visits: " + str(self.neighborsHistory[port][0]) +
+            " Sended packets number: " + str(self.neighborsHistory[port][1]) +
+            " Recieved packets number: " + str(self.neighborsHistory[port][2]) + '\n')
+        f.write("----------------------------------------\n") 
+        f.close()
 
 
 def packetIsLost():
@@ -186,7 +214,9 @@ def setNodesRunningStatus(nodesRunningStatus, firstOffNode, secondOffNode):
         firstOffNode = secondOffNode
         secondOffNode = nodeId
         nodesRunningStatus[secondOffNode] = False
-    threading.Timer(10.0, setNodesRunningStatus, args = (nodesRunningStatus,firstOffNode,secondOffNode,)).start()
+    t1 = threading.Timer(10.0, setNodesRunningStatus, args = (nodesRunningStatus,firstOffNode,secondOffNode,))
+    t1.setName('timer')
+    t1.start()
 
 if __name__ == '__main__':
     ports = getPortNumbers()
@@ -197,11 +227,16 @@ if __name__ == '__main__':
     
     setNodesRunningStatus(nodesRunningStatus, -1, -1)
 
+    jobs = []
     for i in range(nodesNumber):
         p = multiprocessing.Process(target=nodes[i].run, args=(nodesRunningStatus, ))
+        jobs.append(p)
         p.start()
-    
-    
-    p.join()
-    
-    
+
+    time.sleep(45)
+
+    for i in range(nodesNumber):
+        jobs[i].kill()
+
+    print("Done")
+
