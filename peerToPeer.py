@@ -10,8 +10,8 @@ import signal
 import os
 import json
 
-nodesNumber = 3
-neighborsNumber = 2
+nodesNumber = 6
+neighborsNumber = 3
 nodesIp = '127.0.0.1'
 
 
@@ -32,11 +32,11 @@ class Node:
         self.ip = ip
         self.port = port
         self.others = others
-        self.neighbors = [] #[(port, lastSendTime, lastRecieveTime, id)]
+        self.neighbors = [] #[(port, lastSendTime, lastRecieveTime)]
         self.nodesSaidHelloToMe = []
         self.nodesIsaidHelloToThem = []
         self.neighborsHistory = {} #{port: [numberOfNeighberhoodVisits , sendedPackets, recievedPackets, neighbors]}
-        self.nodesAvailibility = [[datetime.datetime.min,0] for i in range(nodesNumber)] #(lastAvailibility, duration)
+        self.nodesAvailibility = {} #(lastAvailibility, duration)
 
     def sendHelloPacket(self, nodePort, lastSendTime, lastRecieveTime):
         UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -94,17 +94,20 @@ class Node:
         nodePort = message.senderPort
         for i in range(len(self.neighbors)) :
             if self.neighbors[i][0] == nodePort:
-                print("5 - recieve massage from my neighbor i am " + str(self.port))
+                # print("5 - recieve massage from my neighbor i am " + str(self.port))
                 self.neighbors[i] =  (self.neighbors[i][0], self.neighbors[i][1], message.lastSendedAt)
                 self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=True, nodesNeighbors=message.neighbors)
                 return
         for i in range(len(self.nodesIsaidHelloToThem)):
             if self.nodesIsaidHelloToThem[i][0] == nodePort:
-                print("6 - recieve massage from nodesIsaidHelloToThem i am " + str(self.port))
+                # print("6 - recieve massage from nodesIsaidHelloToThem i am " + str(self.port))
                 if len(self.neighbors) < neighborsNumber:
                     newNodeInfo = (self.nodesIsaidHelloToThem[i][0], self.nodesIsaidHelloToThem[i][1], message.lastSendedAt, message.senderId)
                     self.neighbors.append(newNodeInfo)
-                    self.nodesAvailibility[message.senderId][0] = datetime.datetime.now()
+                    if(message.senderPort in self.nodesAvailibility):
+                        self.nodesAvailibility[message.senderPort][0] =  datetime.datetime.now()
+                    else:
+                        self.nodesAvailibility.update({message.senderPort: [datetime.datetime.now(),0]})
                     self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=False, nodesNeighbors=message.neighbors)
                     del self.nodesIsaidHelloToThem[i]
                 else:
@@ -112,12 +115,12 @@ class Node:
                 return
         for i in range(len(self.nodesSaidHelloToMe)):
             if self.nodesSaidHelloToMe[i][0] == nodePort:
-                print("7 - recieve massage from nodesSaidHelloToMe i am " + str(self.port))
+                # print("7 - recieve massage from nodesSaidHelloToMe i am " + str(self.port))
                 self.nodesSaidHelloToMe[i] = (self.nodesSaidHelloToMe[i][0], self.nodesSaidHelloToMe[i][1], message.lastSendedAt)
                 return
 
         newNodeInfo = (nodePort, datetime.datetime.min, message.lastSendedAt)
-        print("8 - recieve massage from others i am " + str(self.port))
+        # print("8 - recieve massage from others i am " + str(self.port))
         self.nodesSaidHelloToMe.append(newNodeInfo)    
 
     def listen(self, runningStatus):
@@ -131,17 +134,18 @@ class Node:
                     self.handleRecievedMessages(message)
         
     def checkNeighbors(self, runningStatus):
+        strangerNeighbors = []
         if runningStatus[self.id] :
             for neighborInfo in self.neighbors:
-                expireDate = neighborInfo[2] + timedelta(seconds = 8) 
-                now = datetime.datetime.now()   
+                expireDate = neighborInfo[2] + timedelta(seconds = 1) 
+                now = datetime.datetime.now()
                 if now > expireDate :
                     print("4 - checkNeighbors in " + str(self.port))
-                    # print("now : " + str(now) + " in " + str(self.port))
-                    # print("last time : " + str(neighborInfo[2]) + " in " + str(self.port))
-                    # print("expire : " + str(expireDate) + " in " + str(self.port))
-                    self.nodesAvailibility[neighborInfo[3]][1] += now - self.nodesAvailibility[neighborInfo[3]][0]
-                    self.neighbors.remove(neighborInfo)
+                    now_interval = (now - datetime.datetime.min).total_seconds()
+                    availablity_interval = (self.nodesAvailibility[neighborInfo[0]][0] - datetime.datetime.min).total_seconds()
+                    self.nodesAvailibility[neighborInfo[0]][1] += now_interval - availablity_interval
+                    strangerNeighbors.append(neighborInfo)
+            self.neighbors = [e for e in self.neighbors if e not in strangerNeighbors]
     
     def updateNeighborsHistory(self,neighborPort, packetIsRecieved, packetIsSended, isNeighborNow, nodesNeighbors):
         if(packetIsRecieved):
@@ -159,7 +163,8 @@ class Node:
     def run(self, nodesRunningStatus):
         curID = threading.currentThread().ident
         listeningThread = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
-        endTime = datetime.datetime.now() + timedelta(seconds = 10)
+        networkWorkingTime = timedelta(minutes= 5)
+        endTime = datetime.datetime.now() + networkWorkingTime
 
         self.sayHello(nodesRunningStatus)
         listeningThread.start()
@@ -169,7 +174,8 @@ class Node:
                 if(datetime.datetime.now() > endTime):
                     self.reportNetworkTopology()
                     self.reportNeighborsStatus()
-                    self.reportNodesAvailibility(endTime)
+                    self.reportCurrentNeighbors()
+                    self.reportNodesAvailibility(networkWorkingTime.total_seconds())
                     break
                 else:
                     if len(self.neighbors) < neighborsNumber:
@@ -231,6 +237,21 @@ class Node:
             "currentNeighbors": neighborsJsonList
         }
         filename = "node_"+str(self.id)+"_2.txt"
+        self.writeInFile(filename, json.dumps(x))
+    
+    def reportNodesAvailibility(self, networkWorkingTime):
+        availablityJsonList = []
+        nodePorts = self.nodesAvailibility.keys()
+        for port in nodePorts:
+            availablityJsonList.append({ 
+                            "nodePort" : port,
+                            "availablity": (self.nodesAvailibility[port][1]/networkWorkingTime),
+                             })
+        x = {
+            "currentNodePort": self.port,
+            "nodesAvailablity" : availablityJsonList
+        }
+        filename = "node_"+str(self.id)+"_3.txt"
         self.writeInFile(filename, json.dumps(x))
 
 
