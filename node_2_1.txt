@@ -1,1 +1,0 @@
-{"nodeIp": "127.0.0.1", "nodePort": 5716, "neighborsHistory": [{"neighborIp": "127.0.0.1", "neighborPort": 7925, "neighborhoodNumber": 1, "sendedPacketsNumber": 4, "recievedPacketsNumber": 1}]}
