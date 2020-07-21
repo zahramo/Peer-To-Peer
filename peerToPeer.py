@@ -140,7 +140,7 @@ class Node:
                 expireDate = neighborInfo[2] + timedelta(seconds = 1) 
                 now = datetime.datetime.now()
                 if now > expireDate :
-                    print("4 - checkNeighbors in " + str(self.port))
+                    # print("4 - checkNeighbors in " + str(self.port))
                     now_interval = (now - datetime.datetime.min).total_seconds()
                     availablity_interval = (self.nodesAvailibility[neighborInfo[0]][0] - datetime.datetime.min).total_seconds()
                     self.nodesAvailibility[neighborInfo[0]][1] += now_interval - availablity_interval
@@ -163,7 +163,7 @@ class Node:
     def run(self, nodesRunningStatus):
         curID = threading.currentThread().ident
         listeningThread = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
-        networkWorkingTime = timedelta(minutes= 5)
+        networkWorkingTime = timedelta(seconds= 30)
         endTime = datetime.datetime.now() + networkWorkingTime
 
         self.sayHello(nodesRunningStatus)
@@ -278,8 +278,8 @@ def createNetworkNodes(ports):
     return nodes
 
 def setNodesRunningStatus(nodesRunningStatus, firstOffNode, secondOffNode):
-    print("first : " + str(firstOffNode))
-    print("second : " + str(secondOffNode))
+    # print("first : " + str(firstOffNode))
+    # print("second : " + str(secondOffNode))
     if firstOffNode == -1 and secondOffNode == -1:
         onNodes = [x for x in range(nodesNumber)]
         nodeId = random.choice(onNodes)
