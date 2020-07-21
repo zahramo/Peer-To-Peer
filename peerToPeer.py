@@ -8,6 +8,7 @@ import sys
 import sched, time
 import signal
 import os
+import json
 
 nodesNumber = 3
 neighborsNumber = 2
@@ -76,7 +77,7 @@ class Node:
             self.nodesIsaidHelloToThem.append(newNodeInfo)
 
     def sayHello(self, runningStatus):
-        threading.Timer(2.0, self.sayHello, args = (nodesRunningStatus,)).start()
+        threading.Timer(2.0, self.sayHello, args = (runningStatus,)).start()
         if runningStatus[self.id] :
             self.sayHelloToNeighbors()
 
@@ -197,33 +198,41 @@ class Node:
         
         
     def reportNeighborsStatus(self):
-        neighborsStatus = "Reporter Port is : " + str(self.port) + "\n"
-        neighborsStatus += "-------- time: "+ str(time.time()) +"---------\n"
-        neighborsPort = list(self.neighborsHistory.keys())
-        for port in neighborsPort:
-            neighborsStatus += "IP: " + str(nodesIp) + ", Port: " + str(port)
-            neighborsStatus += " Neighborhood visits: " + str(self.neighborsHistory[port][0])
-            neighborsStatus += " Sended packets number: " + str(self.neighborsHistory[port][1])
-            neighborsStatus += " Recieved packets number: " + str(self.neighborsHistory[port][2]) + '\n'
-        neighborsStatus += "----------------------------------------\n"
-        self.writeInFile("node_"+str(self.id)+"_1.txt", neighborsStatus)
-    
-    def reportNodesAvailibility(self, now):
-        nodesAvailibility = "Reporter Port is : " + str(self.port) + "\n"
-        for i in range(len(self.nodesAvailibility)):
-            if i == self.id :
-                break
-            nodesAvailibility += "Node Port: " + str(self.others[i]) + " "
-            nodesAvailibility += "Node Availibility: "
-            if self.nodesAvailibility[i][0] == datetime.datetime.min:
-                time = 0
-            elif  self.nodesAvailibility[i][1] == 0:
-                time = now - self.nodesAvailibility[i][0]
-            else :
-                time = self.nodesAvailibility[i][1]
-            nodesAvailibility += str(time/5*3600)
-                
-        self.writeInFile("node_"+str(self.id)+"_3.txt", nodesAvailibility)
+        neighborsJsonList = []
+        neighborsPorts = self.neighborsHistory.keys()
+        for port in neighborsPorts:
+            neighborsJsonList.append({ 
+                            "neighborIp" : nodesIp,
+                            "neighborPort" : port,
+                            "neighborhoodNumber": self.neighborsHistory[port][0],
+                            "sendedPacketsNumber": self.neighborsHistory[port][1],
+                            "recievedPacketsNumber": self.neighborsHistory[port][0]
+                             })
+        x = {
+            "nodeIp": nodesIp,
+            "nodePort": self.port,
+            "neighborsHistory": neighborsJsonList
+        }
+        filename = "node_"+str(self.id)+"_1.txt"
+        self.writeInFile(filename, json.dumps(x))
+
+    def reportCurrentNeighbors(self):
+        neighborsJsonList = []
+        for neighbor in self.neighbors:
+            neighborsJsonList.append({
+                "neighborIp" : nodesIp,
+                "neighborPort" : neighbor[0],
+                "lastSendAt" : str(neighbor[1]),
+                "lastRecievedAt" : str(neighbor[2])
+            })
+        x = {
+            "nodeIp": nodesIp,
+            "nodePort": self.port,
+            "currentNeighbors": neighborsJsonList
+        }
+        filename = "node_"+str(self.id)+"_2.txt"
+        self.writeInFile(filename, json.dumps(x))
+
 
 
 def packetIsLost():
