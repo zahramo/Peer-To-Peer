@@ -1,0 +1,4 @@
+Reporter Port is : 8278
+-------- time: 1595353272.455727---------
+IP: 127.0.0.1, Port: 6379 Neighborhood visits: 1 Sended packets number: 4 Recieved packets number: 973
+----------------------------------------
