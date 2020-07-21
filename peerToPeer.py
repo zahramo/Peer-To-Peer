@@ -18,7 +18,7 @@ class HelloPacket:
         self.senderIp = ip
         self.senderPort = port
         self.packetType = packetType
-        self.neighbors = neighbors #[(port, lastSendTime, lastRecieveTime)]
+        self.neighbors = neighbors 
         self.lastSendedAt = lastSendedAt
         self.lastRecievedAt = lastRecievedAt
 
@@ -29,14 +29,9 @@ class Node:
         self.ip = ip
         self.port = port
         self.others = others
-        self.neighbors = []
+        self.neighbors = [] #[(port, lastSendTime, lastRecieveTime)]
         self.nodesSaidHelloToMe = []
         self.nodesIsaidHelloToThem = []
-        print("Node ",id," created on port ",port,". other ports are: ",others)
-
-    def introduce(self):
-        print("Im ",self.port,". my neighbors are ",[x[0] for x in self.neighbors],
-         " and this people said hello to me: ",[x[0] for x in self.nodesSaidHelloToMe])
 
     def sendHelloPacket(self, nodePort, lastSendTime, lastRecieveTime):
         UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -44,24 +39,22 @@ class Node:
         data = pickle.dumps(message)
         possiblity = random.randint(1,100)
         UDPClientSocket.sendto(data, (nodesIp, nodePort))
-        # time.sleep(15)
-        # print("I(" + str(self.port) + ") sent hello packet to " + str(nodePort))
 
     def sayHelloToNeighbors(self):
-        for neighborInfo in self.neighbors:
-            self.introduce()
-            print("I(" + str(self.port) + ") am sending packet to MY NEIGHBOR: ",neighborInfo[0])
+        for i in range(len(self.neighbors)):
+            # print("1 - sayHelloToNeighbors from " + str(self.port))
             now = datetime.datetime.now()
-            self.sendHelloPacket(neighborInfo[0], now, neighborInfo[2])
-            neighborInfo = (neighborInfo[0], now, neighborInfo[2])
+            # print(str(self.port) + " sent hello packet to neighbor :" + str(self.neighbors[i][0]) + " at " + str(now))
+            self.sendHelloPacket(self.neighbors[i][0], now, self.neighbors[i][2])
+            self.neighbors[i] = (self.neighbors[i][0], now, self.neighbors[i][2])
   
     def sayHelloToNodeSaidHello(self):
         nodeInfo = random.choice(self.nodesSaidHelloToMe)
-        self.introduce()
-        print("I(" + str(self.port) + ") am sending packet to HELLO FRIEND: ",nodeInfo[0])
+        # print("2 - sayHelloToNodeSaidHello from " + str(self.port))
         now = datetime.datetime.now()
         self.sendHelloPacket(nodeInfo[0], now, nodeInfo[2])
         newNodeInfo = (nodeInfo[0], now, nodeInfo[2])
+        
         self.nodesSaidHelloToMe.remove(nodeInfo)
         self.nodesIsaidHelloToThem.append(newNodeInfo)
 
@@ -69,9 +62,8 @@ class Node:
         neighborsPorts = [neighbor[0] for neighbor in self.neighbors]
         availablePorts = [port for port in self.others if port not in neighborsPorts]
         if(len(availablePorts)>0):
+            # print("3 - sayHelloToOtherNode from " + str(self.port))
             nodePort = random.choice(availablePorts)
-            self.introduce()
-            print("I(" + str(self.port) + ") am sending packet to STRANGER: ",nodePort)
             now = datetime.datetime.now()
             self.sendHelloPacket(nodePort, now, datetime.datetime.min)
             newNodeInfo = (nodePort, now, datetime.datetime.min)
@@ -94,23 +86,29 @@ class Node:
 
     def handleRecievedMessages(self, message):
         nodePort = message.senderPort
-        for neighbor in self.neighbors:
-            if neighbor[0] == nodePort:
-                neighbor =  (neighbor[0], neighbor[1], message.lastSendedAt)
+        for i in range(len(self.neighbors)) :
+            if self.neighbors[i][0] == nodePort:
+                print("5 - recieve massage from my neighbor i am " + str(self.port))
+                self.neighbors[i] =  (self.neighbors[i][0], self.neighbors[i][1], message.lastSendedAt)
+                # print(str(self.port) + " recieve hello packet from neighbor :" + str(self.neighbors[i][0]) + " at " + str(self.neighbors[i][2]) )
                 return
-        for node in self.nodesIsaidHelloToThem:
-            if node[0] == nodePort:
-                if(len(self.neighbors) < neighborsNumber):
-                    newNodeInfo = (nodePort, node[1], message.lastSendedAt)
-                    self.nodesIsaidHelloToThem.remove(node)
+        for i in range(len(self.nodesIsaidHelloToThem)):
+            if self.nodesIsaidHelloToThem[i][0] == nodePort:
+                print("6 - recieve massage from nodesIsaidHelloToThem i am " + str(self.port))
+                if len(self.neighbors) < neighborsNumber:
+                    newNodeInfo = (self.nodesIsaidHelloToThem[i][0], self.nodesIsaidHelloToThem[i][1], message.lastSendedAt)
                     self.neighbors.append(newNodeInfo)
+                    del self.nodesIsaidHelloToThem[i]
+                else:
+                    self.nodesIsaidHelloToThem[i] = (self.nodesIsaidHelloToThem[i][0], self.nodesIsaidHelloToThem[i][1], message.lastSendedAt)
                 return
-
-        for node in self.nodesSaidHelloToMe:
-            node = (node[0], node[1], message.lastSendedAt)
-            return
-    
+        for i in range(len(self.nodesSaidHelloToMe)):
+            if self.nodesSaidHelloToMe[i][0] == nodePort:
+                print("7 - recieve massage from nodesSaidHelloToMe i am " + str(self.port))
+                self.nodesSaidHelloToMe[i] = (self.nodesSaidHelloToMe[i][0], self.nodesSaidHelloToMe[i][1], message.lastSendedAt)
+                return
         newNodeInfo = (nodePort, datetime.datetime.min, message.lastSendedAt)
+        print("8 - recieve massage from others i am " + str(self.port))
         self.nodesSaidHelloToMe.append(newNodeInfo)    
 
     def listen(self, runningStatus):
@@ -121,15 +119,19 @@ class Node:
                 if(not packetIsLost()):
                     data, address = UDPServerSocket.recvfrom(1024)
                     message = pickle.loads(data)
-                    print("I(" + str(self.port) + ") recieve hello packet from " + str(message.senderPort))
                     self.handleRecievedMessages(message)
         
     def checkNeighbors(self, runningStatus):
         while(True):
             if runningStatus[self.id] :
                 for neighborInfo in self.neighbors:
-                    expireDate = neighborInfo[2] + timedelta(seconds = 8)    
-                    if datetime.datetime.now() > expireDate :
+                    expireDate = neighborInfo[2] + timedelta(seconds = 8) 
+                    now = datetime.datetime.now()   
+                    if now > expireDate :
+                        print("4 - checkNeighbors in " + str(self.port))
+                        # print("now : " + str(now) + " in " + str(self.port))
+                        # print("last time : " + str(neighborInfo[2]) + " in " + str(self.port))
+                        # print("expire : " + str(expireDate) + " in " + str(self.port))
                         self.neighbors.remove(neighborInfo)
 
     def run(self, nodesRunningStatus):  
@@ -164,17 +166,27 @@ def createNetworkNodes(ports):
         nodes.append(node)
     return nodes
 
-# def turnANodeOff(nodesRunningStatus):
-#     nodeId = random.randint(0,nodesNumber-1)
-#     f = open(("turnOff"+str(nodeId)+".txt"), "w")
-#     f.write("Node "+ str(nodeId)+ " is turning off\n")
-#     t_end = time.time() + 20
-#     while time.time() < t_end:
-#         nodesRunningStatus[nodeId] = False
-#         f.write(str(time.time())+'\n')
-#     nodesRunningStatus[nodeId] = True
-#     f.write("Node "+ str(nodeId) + " turned on\n")
-#     f.close()
+def setNodesRunningStatus(nodesRunningStatus, firstOffNode, secondOffNode):
+    print("first : " + str(firstOffNode))
+    print("second : " + str(secondOffNode))
+    if firstOffNode == -1 and secondOffNode == -1:
+        onNodes = [x for x in range(nodesNumber)]
+        nodeId = random.choice(onNodes)
+        firstOffNode = nodeId
+        nodesRunningStatus[firstOffNode] = False
+    elif secondOffNode == -1:
+        onNodes = [x for x in range(nodesNumber) if x != firstOffNode]
+        nodeId = random.choice(onNodes)
+        secondOffNode = nodeId
+        nodesRunningStatus[secondOffNode] = False
+    else:
+        nodesRunningStatus[firstOffNode] = True
+        onNodes = [x for x in range(nodesNumber) if x != secondOffNode]
+        nodeId = random.choice(onNodes)
+        firstOffNode = secondOffNode
+        secondOffNode = nodeId
+        nodesRunningStatus[secondOffNode] = False
+    threading.Timer(10.0, setNodesRunningStatus, args = (nodesRunningStatus,firstOffNode,secondOffNode,)).start()
 
 if __name__ == '__main__':
     ports = getPortNumbers()
@@ -182,12 +194,13 @@ if __name__ == '__main__':
     nodesRunningStatus = multiprocessing.Manager().list()
     for i in range(nodesNumber):
         nodesRunningStatus.append(True)
+    
+    setNodesRunningStatus(nodesRunningStatus, -1, -1)
 
     for i in range(nodesNumber):
         p = multiprocessing.Process(target=nodes[i].run, args=(nodesRunningStatus, ))
         p.start()
     
-    # threading.Timer(10.0, turnANodeOff, args = (nodesRunningStatus,)).start()
     
     p.join()
     
