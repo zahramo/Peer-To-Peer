@@ -9,8 +9,8 @@ import sched, time
 import signal
 import os
 
-nodesNumber = 3
-neighborsNumber = 2
+nodesNumber = 6
+neighborsNumber = 3
 nodesIp = '127.0.0.1'
 
 
@@ -181,7 +181,13 @@ class Node:
 
     def reportNetworkTopology(self):
         topology = "Reporter Port is : " + str(self.port) + "\n"
-        # for neigor in self.neighbors :
+        topology += str(self.port) + "\n"
+        for neighbor in self.neighbors :
+            topology += "     <--> " + str(neighbor[0]) + "\n"
+            neighborsOfNeighbor = self.neighborsHistory[neighbor[0]][3]
+            for neighborOfNeighbor in neighborsOfNeighbor:
+                if(neighborOfNeighbor[0] != self.port):
+                    topology += "               <--> " + str(neighborOfNeighbor[0]) + "\n"
 
         self.writeInFile("node_"+str(self.id)+"_4.txt", topology)
         
