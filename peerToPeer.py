@@ -74,19 +74,18 @@ class Node:
             self.nodesIsaidHelloToThem.append(newNodeInfo)
 
     def sayHello(self, runningStatus):
-        threading.Timer(2.0, self.sayHello, args = (nodesRunningStatus,)).start()
+        threading.Timer(2.0, self.sayHello, args = (runningStatus,)).start()
+        print(self.id,"**************")
         if runningStatus[self.id] :
             self.sayHelloToNeighbors()
 
         
     def findNeighbors(self, runningStatus):
-        while(True):
-            if runningStatus[self.id] :
-                if len(self.neighbors) < neighborsNumber:
-                    if len(self.nodesSaidHelloToMe) > 0:
-                        self.sayHelloToNodeSaidHello()
-                    else:
-                        self.sayHelloToOtherNode()
+        if runningStatus[self.id] :
+                if len(self.nodesSaidHelloToMe) > 0:
+                    self.sayHelloToNodeSaidHello()
+                else:
+                    self.sayHelloToOtherNode()
 
     def handleRecievedMessages(self, message):
         nodePort = message.senderPort
@@ -128,17 +127,13 @@ class Node:
                     self.handleRecievedMessages(message)
         
     def checkNeighbors(self, runningStatus):
-        while(True):
-            if runningStatus[self.id] :
-                for neighborInfo in self.neighbors:
-                    expireDate = neighborInfo[2] + timedelta(seconds = 8) 
-                    now = datetime.datetime.now()   
-                    if now > expireDate :
-                        print("4 - checkNeighbors in " + str(self.port))
-                        # print("now : " + str(now) + " in " + str(self.port))
-                        # print("last time : " + str(neighborInfo[2]) + " in " + str(self.port))
-                        # print("expire : " + str(expireDate) + " in " + str(self.port))
-                        self.neighbors.remove(neighborInfo)
+        if runningStatus[self.id] :
+            for neighborInfo in self.neighbors:
+                expireDate = neighborInfo[2] + timedelta(seconds = 8) 
+                now = datetime.datetime.now()   
+                if now > expireDate :
+                    print("4 - checkNeighbors in " + str(self.port))
+                    self.neighbors.remove(neighborInfo)
     
     def updateNeighborsHistory(self,neighborPort, packetIsRecieved, packetIsSended, isNeighborNow):
         if(packetIsRecieved):
@@ -153,16 +148,16 @@ class Node:
             self.neighborsHistory[neighborPort][1] += 1
 
     def run(self, nodesRunningStatus):
-        t1 = threading.Thread(target=self.sayHello, args=(nodesRunningStatus,))
-        t2 = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
-        t3 = threading.Thread(target=self.findNeighbors, args=(nodesRunningStatus,))
-        t4 = threading.Thread(target=self.checkNeighbors, args=(nodesRunningStatus,))
-        t5 = threading.Thread(target=self.report, args=())
-        t1.start()
-        t2.start()
-        t3.start()
-        t4.start()
-        t5.start()
+        listeningThread = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
+        listeningThread.start()
+        # s = sched.scheduler(time.time, time.sleep)
+        # s.enter(2, 0, self.sayHello, (nodesRunningStatus,))
+        # s.run()
+        self.sayHello(nodesRunningStatus)
+        while(True):
+            if len(self.neighbors) < neighborsNumber:
+                self.findNeighbors(nodesRunningStatus)
+            self.checkNeighbors(nodesRunningStatus)
     
     def report(self):
         threading.Timer(5.0, self.report, args = ()).start()
