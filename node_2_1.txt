@@ -1,4 +1,1 @@
-Reporter Port is : 6360
--------- time: 1595349010.38325---------
-IP: 127.0.0.1, Port: 5952 Neighborhood visits: 1 Sended packets number: 4 Recieved packets number: 5
-----------------------------------------
+{"nodeIp": "127.0.0.1", "nodePort": 5716, "neighborsHistory": [{"neighborIp": "127.0.0.1", "neighborPort": 7925, "neighborhoodNumber": 1, "sendedPacketsNumber": 4, "recievedPacketsNumber": 1}]}

@@ -1,3 +1,1 @@
-Reporter Port is : 5956
--------- time: 1595349010.378336---------
-----------------------------------------
+{"nodeIp": "127.0.0.1", "nodePort": 7925, "neighborsHistory": [{"neighborIp": "127.0.0.1", "neighborPort": 5716, "neighborhoodNumber": 1, "sendedPacketsNumber": 4, "recievedPacketsNumber": 1}]}
