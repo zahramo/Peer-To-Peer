@@ -34,7 +34,7 @@ class Node:
         self.neighbors = [] #[(port, lastSendTime, lastRecieveTime)]
         self.nodesSaidHelloToMe = []
         self.nodesIsaidHelloToThem = []
-        self.neighborsHistory = {} #{port: [numberOfNeighberhoodVisits , sendedPackets, recievedPackets]}
+        self.neighborsHistory = {} #{port: [numberOfNeighberhoodVisits , sendedPackets, recievedPackets, neighbors]}
 
     def sendHelloPacket(self, nodePort, lastSendTime, lastRecieveTime):
         UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
@@ -50,7 +50,7 @@ class Node:
             # print(str(self.port) + " sent hello packet to neighbor :" + str(self.neighbors[i][0]) + " at " + str(now))
             self.sendHelloPacket(self.neighbors[i][0], now, self.neighbors[i][2])
             self.neighbors[i] = (self.neighbors[i][0], now, self.neighbors[i][2])
-            self.updateNeighborsHistory(self.neighbors[i][0],packetIsRecieved= False, packetIsSended=True, isNeighborNow=True)
+            self.updateNeighborsHistory(self.neighbors[i][0],packetIsRecieved= False, packetIsSended=True, isNeighborNow=True, nodesNeighbors=[])
   
     def sayHelloToNodeSaidHello(self):
         nodeIndex = random.randint(0, len(self.nodesSaidHelloToMe)-1)
@@ -94,7 +94,7 @@ class Node:
             if self.neighbors[i][0] == nodePort:
                 print("5 - recieve massage from my neighbor i am " + str(self.port))
                 self.neighbors[i] =  (self.neighbors[i][0], self.neighbors[i][1], message.lastSendedAt)
-                self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=True)
+                self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=True, nodesNeighbors=message.neighbors)
                 return
         for i in range(len(self.nodesIsaidHelloToThem)):
             if self.nodesIsaidHelloToThem[i][0] == nodePort:
@@ -102,7 +102,7 @@ class Node:
                 if len(self.neighbors) < neighborsNumber:
                     newNodeInfo = (self.nodesIsaidHelloToThem[i][0], self.nodesIsaidHelloToThem[i][1], message.lastSendedAt)
                     self.neighbors.append(newNodeInfo)
-                    self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=False)
+                    self.updateNeighborsHistory(nodePort,packetIsRecieved= True, packetIsSended=False, isNeighborNow=False, nodesNeighbors=message.neighbors)
                     del self.nodesIsaidHelloToThem[i]
                 else:
                     self.nodesIsaidHelloToThem[i] = (self.nodesIsaidHelloToThem[i][0], self.nodesIsaidHelloToThem[i][1], message.lastSendedAt)
@@ -139,15 +139,16 @@ class Node:
                     # print("expire : " + str(expireDate) + " in " + str(self.port))
                     self.neighbors.remove(neighborInfo)
     
-    def updateNeighborsHistory(self,neighborPort, packetIsRecieved, packetIsSended, isNeighborNow):
+    def updateNeighborsHistory(self,neighborPort, packetIsRecieved, packetIsSended, isNeighborNow, nodesNeighbors):
         if(packetIsRecieved):
             if(neighborPort in self.neighborsHistory):
                 if(not isNeighborNow):
                     self.neighborsHistory[neighborPort][0] += 1
                 else:
                     self.neighborsHistory[neighborPort][2] += 1
+                    self.neighborsHistory[neighborPort][3] = nodesNeighbors
             else:
-                self.neighborsHistory.update({neighborPort: [1,0,0]})
+                self.neighborsHistory.update({neighborPort: [1,0,0,nodesNeighbors]})
         elif(packetIsSended):
             self.neighborsHistory[neighborPort][1] += 1
 
@@ -179,7 +180,9 @@ class Node:
         f.close()
 
     def reportNetworkTopology(self):
-        topology = 'hi'
+        topology = "Reporter Port is : " + str(self.port) + "\n"
+        # for neigor in self.neighbors :
+
         self.writeInFile("node_"+str(self.id)+"_4.txt", topology)
         
         
