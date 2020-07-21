@@ -1,0 +1,4 @@
+Reporter Port is : 8483
+-------- time: 1595346505.906262---------
+IP: 127.0.0.1, Port: 5070 Neighborhood visits: 1 Sended packets number: 4 Recieved packets number: 3
+----------------------------------------

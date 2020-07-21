@@ -9,8 +9,8 @@ import sched, time
 import signal
 import os
 
-nodesNumber = 6
-neighborsNumber = 3
+nodesNumber = 3
+neighborsNumber = 2
 nodesIp = '127.0.0.1'
 
 
@@ -53,13 +53,14 @@ class Node:
             self.updateNeighborsHistory(self.neighbors[i][0],packetIsRecieved= False, packetIsSended=True, isNeighborNow=True)
   
     def sayHelloToNodeSaidHello(self):
-        nodeInfo = random.choice(self.nodesSaidHelloToMe)
+        nodeIndex = random.randint(0, len(self.nodesSaidHelloToMe)-1)
+        nodeInfo = self.nodesSaidHelloToMe[nodeIndex]
         # print("2 - sayHelloToNodeSaidHello from " + str(self.port))
         now = datetime.datetime.now()
         self.sendHelloPacket(nodeInfo[0], now, nodeInfo[2])
         newNodeInfo = (nodeInfo[0], now, nodeInfo[2])
         
-        self.nodesSaidHelloToMe.remove(nodeInfo)
+        del self.nodesSaidHelloToMe[nodeIndex]
         self.nodesIsaidHelloToThem.append(newNodeInfo)
 
     def sayHelloToOtherNode(self):
@@ -74,14 +75,14 @@ class Node:
             self.nodesIsaidHelloToThem.append(newNodeInfo)
 
     def sayHello(self, runningStatus):
-        threading.Timer(2.0, self.sayHello, args = (runningStatus,)).start()
-        print(self.id,"**************")
+        threading.Timer(2.0, self.sayHello, args = (nodesRunningStatus,)).start()
         if runningStatus[self.id] :
             self.sayHelloToNeighbors()
 
         
     def findNeighbors(self, runningStatus):
         if runningStatus[self.id] :
+            if len(self.neighbors) < neighborsNumber:
                 if len(self.nodesSaidHelloToMe) > 0:
                     self.sayHelloToNodeSaidHello()
                 else:
@@ -133,6 +134,9 @@ class Node:
                 now = datetime.datetime.now()   
                 if now > expireDate :
                     print("4 - checkNeighbors in " + str(self.port))
+                    # print("now : " + str(now) + " in " + str(self.port))
+                    # print("last time : " + str(neighborInfo[2]) + " in " + str(self.port))
+                    # print("expire : " + str(expireDate) + " in " + str(self.port))
                     self.neighbors.remove(neighborInfo)
     
     def updateNeighborsHistory(self,neighborPort, packetIsRecieved, packetIsSended, isNeighborNow):
@@ -148,29 +152,48 @@ class Node:
             self.neighborsHistory[neighborPort][1] += 1
 
     def run(self, nodesRunningStatus):
+        curID = threading.currentThread().ident
         listeningThread = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
-        listeningThread.start()
-        # s = sched.scheduler(time.time, time.sleep)
-        # s.enter(2, 0, self.sayHello, (nodesRunningStatus,))
-        # s.run()
+        endTime = datetime.datetime.now() + timedelta(seconds = 10)
+
         self.sayHello(nodesRunningStatus)
-        while(True):
-            if len(self.neighbors) < neighborsNumber:
-                self.findNeighbors(nodesRunningStatus)
-            self.checkNeighbors(nodesRunningStatus)
-    
-    def report(self):
-        threading.Timer(5.0, self.report, args = ()).start()
-        f = open("node_"+str(self.id)+"_1.txt","a")
-        f.write("-------- time: "+ str(time.time()) +"---------\n")
+        listeningThread.start()
+
+        if(threading.currentThread().ident == curID):
+            while(True):
+                if(datetime.datetime.now() > endTime):
+                    self.reportNetworkTopology()
+                    self.reportNeighborsStatus()
+                    break
+                else:
+                    if len(self.neighbors) < neighborsNumber:
+                        self.findNeighbors(nodesRunningStatus)
+                        self.checkNeighbors(nodesRunningStatus)
+
+
+        
+
+    def writeInFile(self, fileName, fileData):
+        f = open(fileName,"w")
+        f.write(fileData)
+        f.close()
+
+    def reportNetworkTopology(self):
+        topology = 'hi'
+        self.writeInFile("node_"+str(self.id)+"_4.txt", topology)
+        
+        
+    def reportNeighborsStatus(self):
+        neighborsStatus = "Reporter Port is : " + str(self.port) + "\n"
+        neighborsStatus += "-------- time: "+ str(time.time()) +"---------\n"
         neighborsPort = list(self.neighborsHistory.keys())
         for port in neighborsPort:
-            f.write("IP: " + str(nodesIp) + ", Port: " + str(port) + 
-            " Neighborhood visits: " + str(self.neighborsHistory[port][0]) +
-            " Sended packets number: " + str(self.neighborsHistory[port][1]) +
-            " Recieved packets number: " + str(self.neighborsHistory[port][2]) + '\n')
-        f.write("----------------------------------------\n") 
-        f.close()
+            neighborsStatus += "IP: " + str(nodesIp) + ", Port: " + str(port)
+            neighborsStatus += " Neighborhood visits: " + str(self.neighborsHistory[port][0])
+            neighborsStatus += " Sended packets number: " + str(self.neighborsHistory[port][1])
+            neighborsStatus += " Recieved packets number: " + str(self.neighborsHistory[port][2]) + '\n'
+        neighborsStatus += "----------------------------------------\n"
+        self.writeInFile("node_"+str(self.id)+"_1.txt", neighborsStatus)
 
 
 def packetIsLost():
@@ -232,11 +255,4 @@ if __name__ == '__main__':
         p = multiprocessing.Process(target=nodes[i].run, args=(nodesRunningStatus, ))
         jobs.append(p)
         p.start()
-
-    time.sleep(45)
-
-    for i in range(nodesNumber):
-        jobs[i].kill()
-
-    print("Done")
-
+    p.join()
