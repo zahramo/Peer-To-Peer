@@ -1,1 +1,1 @@
-{"currentNodePort": 7773, "nodesAvailablity": [{"nodePort": 7166, "availablity": 100.0}, {"nodePort": 7505, "availablity": 100.0}, {"nodePort": 7108, "availablity": 100.0}]}
+{"currentNodePort": 9364, "nodesAvailablity": [{"nodePort": 5730, "availablity": 96.67221069335938}, {"nodePort": 5679, "availablity": 96.66334788004556}, {"nodePort": 9713, "availablity": 96.62731170654297}]}
