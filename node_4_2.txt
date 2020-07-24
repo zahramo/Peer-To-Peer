@@ -1,1 +1,1 @@
-{"nodeIp": "127.0.0.1", "nodePort": 5679, "currentNeighbors": [{"neighborIp": "127.0.0.1", "neighborPort": 9364, "lastSendAt": "2020-07-24 17:26:03.202295", "lastRecievedAt": "2020-07-24 17:26:03.128309"}, {"neighborIp": "127.0.0.1", "neighborPort": 5730, "lastSendAt": "2020-07-24 17:26:03.202888", "lastRecievedAt": "2020-07-24 17:26:03.126836"}, {"neighborIp": "127.0.0.1", "neighborPort": 7357, "lastSendAt": "2020-07-24 17:26:03.216129", "lastRecievedAt": "2020-07-24 17:25:43.050177"}]}
+{"nodeIp": "127.0.0.1", "nodePort": 7448, "currentNeighbors": []}

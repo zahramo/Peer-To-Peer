@@ -160,14 +160,14 @@ class Node:
                     self.neighborsHistory[neighborPort][2] += 1
                     self.neighborsHistory[neighborPort][3] = nodesNeighbors
             else:
-                self.neighborsHistory.update({neighborPort: [1,0,0,nodesNeighbors]})
+                self.neighborsHistory.update({neighborPort: [1,0,1,nodesNeighbors]})
         elif(packetIsSended):
             self.neighborsHistory[neighborPort][1] += 1
 
     def run(self, nodesRunningStatus):
         curID = threading.currentThread().ident
         listeningThread = threading.Thread(target=self.listen, args=(nodesRunningStatus,))
-        workingTime = timedelta(minutes= 1)
+        workingTime = timedelta(minutes= 5)
         endTime = datetime.datetime.now() + workingTime
 
         self.sayHello(nodesRunningStatus)
