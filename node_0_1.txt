@@ -1,1 +1,1 @@
-{"nodeIp": "127.0.0.1", "nodePort": 5086, "neighborsHistory": []}
+{"nodeIp": "127.0.0.1", "nodePort": 8865, "neighborsHistory": [{"neighborIp": "127.0.0.1", "neighborPort": 5629, "neighborhoodNumber": 223, "sendedPacketsNumber": 6, "recievedPacketsNumber": 223}, {"neighborIp": "127.0.0.1", "neighborPort": 7166, "neighborhoodNumber": 36, "sendedPacketsNumber": 0, "recievedPacketsNumber": 36}]}
